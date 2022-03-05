@@ -40,6 +40,10 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 		tlsConn.Handshake()
 	}
 
+	if config.SaveCookies {
+		Data.Cookies[Data.Client.url.String()] = make([]hpack.HeaderField, 0)
+	}
+
 	fmt.Fprintf(tlsConn, http2.ClientPreface)
 
 	Data.Client.Conn = http2.NewFramer(tlsConn, tlsConn)
