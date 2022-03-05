@@ -3,46 +3,37 @@ package lzhttp
 import (
 	"net/url"
 
+	tls "gitlab.com/yawning/utls.git"
+
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
 )
 
 type Client struct {
-	Config Config
-	Ja3    string
-	Client Website
+	Config  Config
+	Ja3     string
+	Cookies map[string][]hpack.HeaderField // Used to store the data of websites cookies
+	Client  Website
 }
 
 type Website struct {
-	Method  string
 	url     *url.URL
 	Headers []string
 	Conn    *http2.Framer
 }
 
 type Config struct {
-	SubHeaderOrder     []string
-	HeaderOrder        []string
-	Headers            map[string]string
-	AutoDecompress     bool
-	InsecureSkipVerify bool
-	Protocols          []string
-	CapitalizeHeaders  bool
-	Verbose            bool
+	SubHeaderOrder    []string
+	HeaderOrder       []string
+	Headers           map[string]string
+	Protocols         []string
+	CapitalizeHeaders bool
 }
 
 type Response struct {
 	Data    []byte
 	Status  string
 	Headers []hpack.HeaderField
-	Cookies []string
-}
-
-type HttpConfig struct {
-	Path   string
-	Scheme string
-	Data   string
-	Server string
 }
 
 const (
@@ -53,3 +44,14 @@ const (
 	MethodDelete  = "DELETE"
 	MethodConnect = "CONNECT"
 )
+
+type ReqConfig struct {
+	Data               []byte
+	Cookies            []string
+	Ciphersuites       []uint16
+	Certificates       []tls.Certificate
+	Renegotiation      tls.RenegotiationSupport
+	InsecureSkipVerify bool
+	Proxy              string // https://user:pass@ip:port
+	SaveCookies        bool
+}

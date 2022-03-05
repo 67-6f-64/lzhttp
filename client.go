@@ -1,15 +1,15 @@
 package lzhttp
 
-func (Data *Client) DefaultRequest(method, addr string, body []byte) (Res Response, err error) {
-	if err = Data.GrabUrl(addr, method).GenerateConn(); err != nil {
+func (Data *Client) DefaultRequest(method, addr string, config ReqConfig) (Res Response, err error) {
+	if err = Data.GrabUrl(addr, method).GenerateConn(config); err != nil {
 		return Response{}, err
 	}
 
-	Data.SendSettings()
+	Data.SendSettings(method)
 
 	if method != "GET" {
-		Data.Client.DataSend(body)
+		Data.Client.DataSend(config.Data)
 	}
 
-	return Data.FindData()
+	return Data.FindData(config)
 }

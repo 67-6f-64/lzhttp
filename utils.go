@@ -15,7 +15,7 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
-func (Data *Client) GenerateConn() error {
+func (Data *Client) GenerateConn(config ReqConfig) error {
 	conn, err := net.Dial("tcp", CheckAddr(Data.Client.url))
 	if err != nil {
 		return err
@@ -23,20 +23,11 @@ func (Data *Client) GenerateConn() error {
 
 	tlsConn := tls.UClient(conn, &tls.Config{
 		ServerName:         Data.Client.url.Host,
-		InsecureSkipVerify: Data.Config.InsecureSkipVerify,
+		InsecureSkipVerify: config.InsecureSkipVerify,
 		NextProtos:         Data.Config.Protocols,
-		Renegotiation:      tls.RenegotiateFreelyAsClient,
-		CipherSuites: []uint16{
-			tls.GREASE_PLACEHOLDER,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_AES_128_GCM_SHA256, // tls 1.3
-			tls.FAKE_TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		},
+		Renegotiation:      config.Renegotiation,
+		CipherSuites:       config.Ciphersuites,
+		Certificates:       config.Certificates,
 	}, tls.HelloChrome_Auto)
 
 	if Data.Ja3 != "" {
@@ -44,7 +35,9 @@ func (Data *Client) GenerateConn() error {
 		if err != nil {
 			return err
 		}
+
 		tlsConn.ApplyPreset(spec)
+		tlsConn.Handshake()
 	}
 
 	fmt.Fprintf(tlsConn, http2.ClientPreface)
@@ -55,11 +48,21 @@ func (Data *Client) GenerateConn() error {
 	return nil
 }
 
-func (Data *Client) SendSettings() {
+func (Data *Client) GetCookie(cookie_name, url string) hpack.HeaderField {
+	for _, val := range Data.Cookies[url] {
+		if val.Name == cookie_name {
+			return val
+		}
+	}
+
+	return hpack.HeaderField{}
+}
+
+func (Data *Client) SendSettings(method string) {
 	Data.WriteSettings()
 	Data.Windows_Update()
 	Data.Send_Prio_Frames()
-	Data.GetHeaders().SendHeaders(Data.Client.Method == "GET")
+	Data.GetHeaders(method).SendHeaders(method == "GET")
 }
 
 func (Data *Website) DataSend(body []byte) {
@@ -98,12 +101,12 @@ func (Data *Client) Send_Prio_Frames() {
 	})
 }
 
-func (Data *Client) GetHeaders() *Client {
+func (Data *Client) GetHeaders(method string) *Client {
 	for _, name := range Data.Config.SubHeaderOrder {
 		if name == ":authority" {
 			Data.Client.Headers = append(Data.Client.Headers, ":authority: "+Data.Client.url.Host)
 		} else if name == ":method" {
-			Data.Client.Headers = append(Data.Client.Headers, ":method: "+Data.Client.Method)
+			Data.Client.Headers = append(Data.Client.Headers, ":method: "+method)
 		} else if name == ":path" {
 			Data.Client.Headers = append(Data.Client.Headers, ":path: "+Data.CheckQuery().Client.url.Path)
 		} else if name == ":scheme" {
@@ -166,13 +169,12 @@ func (Data *Client) WriteSettings() {
 	)
 }
 
-func (Data *Client) FindData() (Config Response, err error) {
+func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 	for {
-		f, err := Data.Client.Conn.ReadFrame()
+		f, err := Datas.Client.Conn.ReadFrame()
 		if err != nil {
 			return Config, err
 		}
-
 		switch f := f.(type) {
 		case *http2.DataFrame:
 			Config.Data = append(Config.Data, f.Data()...)
@@ -184,19 +186,18 @@ func (Data *Client) FindData() (Config Response, err error) {
 			if err != nil {
 				return Config, err
 			}
-
 			for _, Data := range Config.Headers {
 				if Data.Name == ":status" {
 					Config.Status = Data.Value
 				} else if Data.Name == "set-cookie" {
-					Config.Cookies = append(Config.Cookies, Data.Value)
+					if req.SaveCookies {
+						Datas.Cookies[Datas.Client.url.Host] = append(Datas.Cookies[Datas.Client.url.Host], Data)
+					}
 				}
 			}
-
 			if f.FrameHeader.Flags.Has(http2.FlagDataEndStream) && f.FrameHeader.Flags.Has(http2.FlagHeadersEndStream) {
 				return Config, nil
 			}
-
 		case *http2.RSTStreamFrame:
 			return Config, errors.New(f.ErrCode.String())
 		case *http2.GoAwayFrame:
@@ -210,39 +211,30 @@ func CapitalizeHeader(name string) string {
 	for i, part := range parts {
 		parts[i] = strings.Title(part)
 	}
-
 	return strings.Join(parts, "-")
 }
 
 func GetHeaderObj(headers []string) []byte {
 	hbuf := bytes.NewBuffer([]byte{})
 	encoder := hpack.NewEncoder(hbuf)
-
 	for _, header := range headers {
 		if strings.HasPrefix(header, ":") {
 			parts := strings.Split(strings.ReplaceAll(header, ":", ""), " ")
 			encoder.WriteField(hpack.HeaderField{Name: ":" + parts[0], Value: parts[1]})
-
 		} else {
 			parts := strings.SplitN(header, ":", 2)
 			encoder.WriteField(hpack.HeaderField{Name: strings.TrimSpace(parts[0]), Value: strings.TrimSpace(parts[1])})
 		}
-
 	}
-
 	return hbuf.Bytes()
 }
 
 func (Data *Client) GrabUrl(addr, method string) *Client {
 	Data.Client.url, _ = url.Parse(addr)
-
 	if !strings.Contains(addr, "https") || !strings.Contains(addr, "http") {
 		Data.Client.url = &url.URL{}
 		Data.Client.url.Host = addr
 	}
-
-	Data.Client.Method = method
-
 	return Data
 }
 
@@ -250,7 +242,6 @@ func (Data *Client) CheckQuery() *Client {
 	if Data.Client.url.Query().Encode() != "" {
 		Data.Client.url.Path += "?" + Data.Client.url.Query().Encode()
 	}
-
 	return Data
 }
 
@@ -286,7 +277,6 @@ func GetDefaultConfig() Config {
 			":scheme",
 			":path",
 		},
-
 		HeaderOrder: []string{
 			"cache-control",
 			"sec-ch-ua",
@@ -303,7 +293,6 @@ func GetDefaultConfig() Config {
 			"accept-encoding",
 			"accept-language",
 		},
-
 		Headers: map[string]string{
 			"cache-control":             "max-age=0",
 			"upgrade-insecure-requests": "1",
@@ -318,7 +307,6 @@ func GetDefaultConfig() Config {
 			"sec-ch-ua-platform":        fmt.Sprintf("\\\"%v\\", strings.ToLower(runtime.GOOS)),
 			"accept-language":           "en-US,en;q=0.9",
 		},
-
 		Protocols: []string{"h2", "h1", "http/1.1"},
 	}
 }
