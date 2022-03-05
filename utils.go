@@ -2,7 +2,6 @@ package lzhttp
 
 import (
 	"bytes"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -22,11 +21,7 @@ func (Data *Client) GenerateConn() error {
 		return err
 	}
 
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM([]byte(rootCert))
-
 	tlsConn := tls.UClient(conn, &tls.Config{
-		RootCAs:            roots,
 		ServerName:         Data.Client.url.Host,
 		InsecureSkipVerify: Data.Config.InsecureSkipVerify,
 		NextProtos:         Data.Config.Protocols,
