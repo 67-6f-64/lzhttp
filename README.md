@@ -1,3 +1,14 @@
+### Hi there 👋, my names Liza :3.
+I originally was not going to release this src, but seeing as i have no reason to keep it to myself ive decided to publically release it.
+ATM this script can:
+- Bypass bot detection
+- Scrape websites
+- Act like a "browser"..
+
+What this cannot do:
+- Execute JS
+- Bypass CFs 5 sec wait page
+
 # Post Request
 ```go
 package main
