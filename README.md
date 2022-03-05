@@ -63,5 +63,4 @@ func main() {
 }
 ```
 
-If you are having any issues, or wish to report any bugs join my discord:
-[<img src='https://media.discordapp.net/attachments/921132825795776543/923024561694474240/download_cropped_1.png' height='40'>](https://discord.gg/a8EQ97ZfgK)
+If you are having any issues, or wish to report any bugs join my [discord](https://discord.gg/a8EQ97ZfgK)
