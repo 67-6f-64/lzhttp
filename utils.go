@@ -324,8 +324,6 @@ func GetDefaultConfig() Config {
 			"accept-language":           "en-US,en;q=0.9",
 		},
 
-		Protocols:          []string{"h2", "h1", "http/1.1"},
-		InsecureSkipVerify: true,
-		CapitalizeHeaders:  true,
+		Protocols: []string{"h2", "h1", "http/1.1"},
 	}
 }
