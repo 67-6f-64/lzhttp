@@ -2,12 +2,10 @@ package lzhttp
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
-	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -354,52 +352,4 @@ func Contains(Value []hpack.HeaderField, Data hpack.HeaderField) bool {
 	}
 
 	return false
-}
-
-func GetJson(body []byte, values string) (interface{}, reflect.Type, map[string]interface{}) {
-	config := make(map[string]interface{})
-	json.Unmarshal(body, &config)
-
-	for key, value := range config {
-		switch f := value.(type) {
-		case []map[string]interface{}:
-			for _, data := range f {
-				if f, exists := data[values]; exists {
-					return f, reflect.TypeOf(f), config
-				}
-			}
-		case map[string]interface{}:
-			if v, real := value.(map[string]interface{}); real {
-				for _, value := range v {
-					if v, exists := value.([]interface{}); exists {
-						for _, value := range v {
-							if val, exist := value.(map[string]interface{}); exist {
-								if value, exist := val[values]; exist {
-									return value, reflect.TypeOf(value), config
-								}
-							}
-						}
-					}
-					if value == values {
-						return value, reflect.TypeOf(value), config
-					}
-				}
-			}
-
-			if key == values || value == values {
-				return value, reflect.TypeOf(value), config
-			}
-
-			if value, exists := f[values]; exists {
-				return value, reflect.TypeOf(value), config
-			}
-
-		default:
-			if key == values {
-				return f, reflect.TypeOf(f), config
-			}
-		}
-	}
-
-	return nil, nil, config
 }
