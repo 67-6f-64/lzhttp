@@ -5,6 +5,10 @@ func (Data *Client) DefaultRequest(method, addr string, config ReqConfig) (Res R
 		return Response{}, err
 	}
 
+	if len(config.Cookies) != 0 {
+		Data.Config.Headers["cookie"] += config.Cookies
+	}
+
 	Data.SendSettings(method)
 
 	if method != "GET" {

@@ -47,7 +47,7 @@ const (
 
 type ReqConfig struct {
 	Data               []byte
-	Cookies            []string
+	Cookies            string
 	Ciphersuites       []uint16
 	Certificates       []tls.Certificate
 	Renegotiation      tls.RenegotiationSupport

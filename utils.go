@@ -2,10 +2,13 @@ package lzhttp
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -41,7 +44,9 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 	}
 
 	if config.SaveCookies {
-		Data.Cookies[Data.Client.url.String()] = make([]hpack.HeaderField, 0)
+		if Data.Cookies == nil || len(Data.Cookies) == 0 {
+			Data.Cookies = make(map[string][]hpack.HeaderField)
+		}
 	}
 
 	fmt.Fprintf(tlsConn, http2.ClientPreface)
@@ -52,14 +57,36 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 	return nil
 }
 
-func (Data *Client) GetCookie(cookie_name, url string) hpack.HeaderField {
+func (Data *Client) GetCookie(cookie_name, url string) string {
 	for _, val := range Data.Cookies[url] {
-		if val.Name == cookie_name {
-			return val
+		if strings.Contains(val.Value, cookie_name) {
+			if data := regexp.MustCompile(fmt.Sprintf(`%v=\s?(\S*);`, cookie_name)).FindStringSubmatch(val.Value); len(data) == 0 {
+				return fmt.Sprintf("%v=%v", cookie_name, regexp.MustCompile(fmt.Sprintf(`%v=\s?(\S*)`, cookie_name)).FindStringSubmatch(val.Value)[1])
+			} else {
+				return fmt.Sprintf("%v=%v", cookie_name, regexp.MustCompile(fmt.Sprintf(`%v=\s?(\S*);`, cookie_name)).FindStringSubmatch(val.Value)[1])
+			}
 		}
 	}
 
-	return hpack.HeaderField{}
+	return ""
+}
+
+func (Data *Client) TransformCookies(url string) string {
+	var cookies []string
+	for _, val := range Data.Cookies[url] {
+		cookie_name := strings.Split(val.Value, "=")[0]
+		if data := regexp.MustCompile(fmt.Sprintf(`%v=\s?(\S*);`, cookie_name)).FindStringSubmatch(val.Value); len(data) == 0 {
+			cookies = append(cookies, fmt.Sprintf("%v=%v", cookie_name, regexp.MustCompile(fmt.Sprintf(`%v=\s?(\S*)`, cookie_name)).FindStringSubmatch(val.Value)[1]))
+		} else {
+			cookies = append(cookies, fmt.Sprintf("%v=%v", cookie_name, regexp.MustCompile(fmt.Sprintf(`%v=\s?(\S*);`, cookie_name)).FindStringSubmatch(val.Value)[1]))
+		}
+	}
+
+	return strings.Join(cookies, "; ")
+}
+
+func TurnCookieHeader(Cookies []string) string {
+	return strings.Join(Cookies, "; ")
 }
 
 func (Data *Client) SendSettings(method string) {
@@ -67,6 +94,7 @@ func (Data *Client) SendSettings(method string) {
 	Data.Windows_Update()
 	Data.Send_Prio_Frames()
 	Data.GetHeaders(method).SendHeaders(method == "GET")
+	Data.Client.Headers = []string{}
 }
 
 func (Data *Website) DataSend(body []byte) {
@@ -179,6 +207,7 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 		if err != nil {
 			return Config, err
 		}
+
 		switch f := f.(type) {
 		case *http2.DataFrame:
 			Config.Data = append(Config.Data, f.Data()...)
@@ -195,7 +224,9 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 					Config.Status = Data.Value
 				} else if Data.Name == "set-cookie" {
 					if req.SaveCookies {
-						Datas.Cookies[Datas.Client.url.Host] = append(Datas.Cookies[Datas.Client.url.Host], Data)
+						if !Contains(Datas.Cookies[Datas.Client.url.String()], Data) {
+							Datas.Cookies[Datas.Client.url.String()] = append(Datas.Cookies[Datas.Client.url.Host], Data)
+						}
 					}
 				}
 			}
@@ -208,6 +239,22 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 			return Config, errors.New(f.ErrCode.String())
 		}
 	}
+}
+
+func (Data *Client) GrabUrl(addr, method string) *Client {
+	Data.Client.url, _ = url.Parse(addr)
+	if !strings.Contains(addr, "https") || !strings.Contains(addr, "http") {
+		Data.Client.url = &url.URL{}
+		Data.Client.url.Host = addr
+	}
+	return Data
+}
+
+func (Data *Client) CheckQuery() *Client {
+	if Data.Client.url.Query().Encode() != "" {
+		Data.Client.url.Path += "?" + Data.Client.url.Query().Encode()
+	}
+	return Data
 }
 
 func CapitalizeHeader(name string) string {
@@ -231,22 +278,6 @@ func GetHeaderObj(headers []string) []byte {
 		}
 	}
 	return hbuf.Bytes()
-}
-
-func (Data *Client) GrabUrl(addr, method string) *Client {
-	Data.Client.url, _ = url.Parse(addr)
-	if !strings.Contains(addr, "https") || !strings.Contains(addr, "http") {
-		Data.Client.url = &url.URL{}
-		Data.Client.url.Host = addr
-	}
-	return Data
-}
-
-func (Data *Client) CheckQuery() *Client {
-	if Data.Client.url.Query().Encode() != "" {
-		Data.Client.url.Path += "?" + Data.Client.url.Query().Encode()
-	}
-	return Data
 }
 
 func UserAgent() string {
@@ -313,4 +344,62 @@ func GetDefaultConfig() Config {
 		},
 		Protocols: []string{"h2", "h1", "http/1.1"},
 	}
+}
+
+func Contains(Value []hpack.HeaderField, Data hpack.HeaderField) bool {
+	for _, data := range Value {
+		if data == Data {
+			return true
+		}
+	}
+
+	return false
+}
+
+func GetJson(body []byte, values string) (interface{}, reflect.Type, map[string]interface{}) {
+	config := make(map[string]interface{})
+	json.Unmarshal(body, &config)
+
+	for key, value := range config {
+		switch f := value.(type) {
+		case []map[string]interface{}:
+			for _, data := range f {
+				if f, exists := data[values]; exists {
+					return f, reflect.TypeOf(f), config
+				}
+			}
+		case map[string]interface{}:
+			if v, real := value.(map[string]interface{}); real {
+				for _, value := range v {
+					if v, exists := value.([]interface{}); exists {
+						for _, value := range v {
+							if val, exist := value.(map[string]interface{}); exist {
+								if value, exist := val[values]; exist {
+									return value, reflect.TypeOf(value), config
+								}
+							}
+						}
+					}
+					if value == values {
+						return value, reflect.TypeOf(value), config
+					}
+				}
+			}
+
+			if key == values || value == values {
+				return value, reflect.TypeOf(value), config
+			}
+
+			if value, exists := f[values]; exists {
+				return value, reflect.TypeOf(value), config
+			}
+
+		default:
+			if key == values {
+				return f, reflect.TypeOf(f), config
+			}
+		}
+	}
+
+	return nil, nil, config
 }
