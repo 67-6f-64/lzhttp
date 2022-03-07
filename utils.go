@@ -24,11 +24,12 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 
 	tlsConn := tls.UClient(conn, &tls.Config{
 		ServerName:         Data.Client.url.Host,
-		InsecureSkipVerify: config.InsecureSkipVerify,
 		NextProtos:         Data.Config.Protocols,
+		InsecureSkipVerify: config.InsecureSkipVerify,
 		Renegotiation:      config.Renegotiation,
 		CipherSuites:       config.Ciphersuites,
 		Certificates:       config.Certificates,
+		ClientAuth:         config.ClientAuth,
 	}, tls.HelloChrome_Auto)
 
 	if Data.Ja3 != "" {
@@ -38,7 +39,6 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 		}
 
 		tlsConn.ApplyPreset(spec)
-		tlsConn.Handshake()
 	}
 
 	if config.SaveCookies {
@@ -48,6 +48,7 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 	}
 
 	fmt.Fprintf(tlsConn, http2.ClientPreface)
+	tlsConn.Handshake()
 
 	Data.Client.Conn = http2.NewFramer(tlsConn, tlsConn)
 	Data.Client.Conn.SetReuseFrames()
@@ -132,34 +133,22 @@ func (Data *Client) Send_Prio_Frames() {
 }
 
 func (Data *Client) GetHeaders(method string) *Client {
-	for _, name := range Data.Config.SubHeaderOrder {
-		if name == ":authority" {
-			Data.Client.Headers = append(Data.Client.Headers, ":authority: "+Data.Client.url.Host)
-		} else if name == ":method" {
-			Data.Client.Headers = append(Data.Client.Headers, ":method: "+method)
-		} else if name == ":path" {
-			Data.Client.Headers = append(Data.Client.Headers, ":path: "+Data.CheckQuery().Client.url.Path)
-		} else if name == ":scheme" {
-			Data.Client.Headers = append(Data.Client.Headers, ":scheme: "+Data.Client.url.Scheme)
-		}
-	}
-
 	for _, name := range Data.Config.HeaderOrder {
-		val, exists := Data.Config.Headers[name]
-		if Data.Config.CapitalizeHeaders {
-			name = CapitalizeHeader(name)
-		}
-		if exists {
+		if name == ":authority" {
+			Data.Client.Headers = append(Data.Client.Headers, name+": "+Data.Client.url.Host)
+		} else if name == ":method" {
+			Data.Client.Headers = append(Data.Client.Headers, name+": "+method)
+		} else if name == ":path" {
+			Data.Client.Headers = append(Data.Client.Headers, name+": "+Data.CheckQuery().Client.url.Path)
+		} else if name == ":scheme" {
+			Data.Client.Headers = append(Data.Client.Headers, name+": "+Data.Client.url.Scheme)
+		} else if val, exists := Data.Config.Headers[name]; exists {
 			Data.Client.Headers = append(Data.Client.Headers, name+": "+val)
 		}
 	}
 
 	for name, val := range Data.Config.Headers {
 		if !strings.Contains(strings.Join(Data.Config.HeaderOrder, ","), name) {
-			if Data.Config.CapitalizeHeaders {
-				name = CapitalizeHeader(name)
-			}
-
 			Data.Client.Headers = append(Data.Client.Headers, name+": "+val)
 		}
 	}
@@ -171,7 +160,7 @@ func (Data *Client) SendHeaders(endStream bool) {
 	Data.Client.Conn.WriteHeaders(
 		http2.HeadersFrameParam{
 			StreamID:      1,
-			BlockFragment: GetHeaderObj(Data.Client.Headers),
+			BlockFragment: Data.FormHeaderBytes(Data.Client.Headers),
 			EndHeaders:    true,
 			EndStream:     endStream,
 		},
@@ -245,6 +234,11 @@ func (Data *Client) GrabUrl(addr, method string) *Client {
 		Data.Client.url = &url.URL{}
 		Data.Client.url.Host = addr
 	}
+
+	if Data.Client.url.Path == "" {
+		Data.Client.url.Path = "/"
+	}
+
 	return Data
 }
 
@@ -252,29 +246,39 @@ func (Data *Client) CheckQuery() *Client {
 	if Data.Client.url.Query().Encode() != "" {
 		Data.Client.url.Path += "?" + Data.Client.url.Query().Encode()
 	}
+
 	return Data
 }
 
-func CapitalizeHeader(name string) string {
-	parts := strings.Split(name, "-")
-	for i, part := range parts {
-		parts[i] = strings.Title(part)
-	}
-	return strings.Join(parts, "-")
-}
+func (Data *Client) FormHeaderBytes(headers []string) []byte {
+	var val []string
 
-func GetHeaderObj(headers []string) []byte {
 	hbuf := bytes.NewBuffer([]byte{})
 	encoder := hpack.NewEncoder(hbuf)
-	for _, header := range headers {
-		if strings.HasPrefix(header, ":") {
-			parts := strings.Split(strings.ReplaceAll(header, ":", ""), " ")
-			encoder.WriteField(hpack.HeaderField{Name: ":" + parts[0], Value: parts[1]})
-		} else {
-			parts := strings.SplitN(header, ":", 2)
-			encoder.WriteField(hpack.HeaderField{Name: strings.TrimSpace(parts[0]), Value: strings.TrimSpace(parts[1])})
+
+	if Data.Config.CapitalizeHeaders {
+		for i, header := range headers {
+			if !strings.HasPrefix(header, ":") {
+				parts := strings.Split(header, "-")
+				for i, data := range parts {
+					parts[i] = strings.Title(data)
+				}
+				headers[i] = strings.Join(parts, "-")
+			}
 		}
 	}
+
+	for _, header := range headers {
+		switch data := strings.Split(header, ":"); len(data) {
+		case 3:
+			val = data[1:]
+			val[0] = fmt.Sprintf(":%v", val[0])
+		default:
+			val = data[0:]
+		}
+		encoder.WriteField(hpack.HeaderField{Name: strings.TrimSpace(val[0]), Value: strings.TrimSpace(val[1])})
+	}
+
 	return hbuf.Bytes()
 }
 
@@ -304,13 +308,11 @@ func CheckAddr(url *url.URL) string {
 
 func GetDefaultConfig() Config {
 	return Config{
-		SubHeaderOrder: []string{
+		HeaderOrder: []string{
 			":method",
 			":authority",
 			":scheme",
 			":path",
-		},
-		HeaderOrder: []string{
 			"cache-control",
 			"sec-ch-ua",
 			"sec-ch-ua-mobile",

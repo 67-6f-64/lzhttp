@@ -51,6 +51,7 @@ type ReqConfig struct {
 	Ciphersuites       []uint16
 	Certificates       []tls.Certificate
 	Renegotiation      tls.RenegotiationSupport
+	ClientAuth         tls.ClientAuthType
 	InsecureSkipVerify bool
 	Proxy              string // https://user:pass@ip:port
 	SaveCookies        bool
