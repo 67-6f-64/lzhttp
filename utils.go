@@ -14,7 +14,66 @@ import (
 	tls "gitlab.com/yawning/utls.git"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
+	"golang.org/x/net/proxy"
 )
+
+func (Data *Client) ConnectProxy(config ReqConfig) error {
+	req, err := proxy.SOCKS5("tcp", fmt.Sprintf("%v:%v", config.Proxy.IP, config.Proxy.Port), &proxy.Auth{
+		User:     config.Proxy.User,
+		Password: config.Proxy.Password,
+	}, proxy.Direct)
+	if err != nil {
+		return err
+	} else {
+		conn, err := req.Dial("tcp", CheckAddr(Data.Client.url))
+		if err != nil {
+			return err
+		}
+
+		tlsConn := tls.UClient(conn, &tls.Config{
+			ServerName:               Data.Client.url.Host,
+			NextProtos:               Data.Config.Protocols,
+			InsecureSkipVerify:       config.InsecureSkipVerify,
+			Renegotiation:            config.Renegotiation,
+			CipherSuites:             config.Ciphersuites,
+			Certificates:             config.Certificates,
+			ClientAuth:               config.ClientAuth,
+			PreferServerCipherSuites: config.PreferServerCipherSuites,
+			CurvePreferences:         config.CurvePreferences,
+			RootCAs:                  config.RootCAs,
+			ClientCAs:                config.ClientCAs,
+		}, tls.HelloChrome_Auto)
+
+		if Data.Ja3 != "" {
+			spec, err := cycletls.StringToSpec(Data.Ja3, Data.Config.Headers["user-agent"])
+			if err != nil {
+				return err
+			}
+
+			err = tlsConn.ApplyPreset(spec)
+			if err != nil {
+				return err
+			}
+		}
+
+		if config.SaveCookies {
+			if Data.Cookies == nil || len(Data.Cookies) == 0 {
+				Data.Cookies = make(map[string][]hpack.HeaderField)
+			}
+		}
+
+		fmt.Fprintf(tlsConn, http2.ClientPreface)
+		err = tlsConn.Handshake()
+		if err != nil {
+			return err
+		}
+
+		Data.Client.Conn = http2.NewFramer(tlsConn, tlsConn)
+		Data.Client.Conn.SetReuseFrames()
+	}
+
+	return nil
+}
 
 // Generate conn performs a conn to the url you supply.
 // Makes all the config options and sets JA3 if given a value.
@@ -292,11 +351,6 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 //				e.g. "https://website.com" > "https://website.com/"
 func (Data *Client) GrabUrl(addr, method string) *Client {
 	Data.Client.url, _ = url.Parse(addr)
-	if !strings.Contains(addr, "https") || !strings.Contains(addr, "http") {
-		Data.Client.url = &url.URL{}
-		Data.Client.url.Host = addr
-	}
-
 	if Data.Client.url.Path == "" {
 		Data.Client.url.Path = "/"
 	}

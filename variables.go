@@ -55,9 +55,13 @@ type ReqConfig struct {
 	Renegotiation            tls.RenegotiationSupport
 	ClientAuth               tls.ClientAuthType
 	InsecureSkipVerify       bool
-	Proxy                    string // https://user:pass@ip:port
+	Proxy                    *ProxyAuth
 	SaveCookies              bool
 	PreferServerCipherSuites bool
 	RootCAs                  *x509.CertPool
 	ClientCAs                *x509.CertPool
+}
+
+type ProxyAuth struct {
+	IP, Port, User, Password string
 }
