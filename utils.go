@@ -270,8 +270,9 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 			if Datas.Config.Debug {
 				fmt.Printf("Received: %v\n", f)
 				for _, Data := range Config.Headers {
-					fmt.Printf("	%v: %v", Data.Name, Data.Value)
+					fmt.Printf("	%v: %v\n", Data.Name, Data.Value)
 				}
+				fmt.Println()
 			}
 
 			if f.FrameHeader.Flags.Has(http2.FlagDataEndStream) && f.FrameHeader.Flags.Has(http2.FlagHeadersEndStream) {
@@ -346,10 +347,11 @@ func (Data *Client) FormHeaderBytes(headers []string) []byte {
 	}
 
 	if Data.Config.Debug {
-		fmt.Println("send HEADERS frame <flags=End_Headers End_Stream>")
+		fmt.Println("send HEADERS frame")
 		for _, header := range headers {
-			fmt.Printf("Header - %v\n", header)
+			fmt.Printf("	Header - %v\n", header)
 		}
+		fmt.Println()
 	}
 
 	return hbuf.Bytes()
