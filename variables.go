@@ -1,6 +1,7 @@
 package lzhttp
 
 import (
+	"crypto/x509"
 	"net/url"
 
 	tls "gitlab.com/yawning/utls.git"
@@ -45,13 +46,17 @@ const (
 )
 
 type ReqConfig struct {
-	Data               []byte
-	Cookies            string
-	Ciphersuites       []uint16
-	Certificates       []tls.Certificate
-	Renegotiation      tls.RenegotiationSupport
-	ClientAuth         tls.ClientAuthType
-	InsecureSkipVerify bool
-	Proxy              string // https://user:pass@ip:port
-	SaveCookies        bool
+	Data                     []byte
+	Cookies                  string
+	Ciphersuites             []uint16
+	Certificates             []tls.Certificate
+	CurvePreferences         []tls.CurveID
+	Renegotiation            tls.RenegotiationSupport
+	ClientAuth               tls.ClientAuthType
+	InsecureSkipVerify       bool
+	Proxy                    string // https://user:pass@ip:port
+	SaveCookies              bool
+	PreferServerCipherSuites bool
+	RootCAs                  *x509.CertPool
+	ClientCAs                *x509.CertPool
 }

@@ -26,13 +26,17 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 	}
 
 	tlsConn := tls.UClient(conn, &tls.Config{
-		ServerName:         Data.Client.url.Host,
-		NextProtos:         Data.Config.Protocols,
-		InsecureSkipVerify: config.InsecureSkipVerify,
-		Renegotiation:      config.Renegotiation,
-		CipherSuites:       config.Ciphersuites,
-		Certificates:       config.Certificates,
-		ClientAuth:         config.ClientAuth,
+		ServerName:               Data.Client.url.Host,
+		NextProtos:               Data.Config.Protocols,
+		InsecureSkipVerify:       config.InsecureSkipVerify,
+		Renegotiation:            config.Renegotiation,
+		CipherSuites:             config.Ciphersuites,
+		Certificates:             config.Certificates,
+		ClientAuth:               config.ClientAuth,
+		PreferServerCipherSuites: config.PreferServerCipherSuites,
+		CurvePreferences:         config.CurvePreferences,
+		RootCAs:                  config.RootCAs,
+		ClientCAs:                config.ClientCAs,
 	}, tls.HelloChrome_Auto)
 
 	if Data.Ja3 != "" {
@@ -75,7 +79,7 @@ func (Data *Client) GetCookie(cookie_name, url string) string {
 	return ""
 }
 
-// This is a helper function that gets all the cookies from a 
+// This is a helper function that gets all the cookies from a
 // cached url and returns them in a format that works with the cookie: header.
 func (Data *Client) TransformCookies(url string) string {
 	var cookies []string
@@ -105,7 +109,7 @@ func (Data *Client) SendSettings(method string) {
 	Data.Client.Headers = []string{}
 }
 
-// Sends data through the framer 
+// Sends data through the framer
 func (Data *Website) DataSend(body []byte) {
 	Data.Conn.WriteData(1, true, body)
 }
@@ -142,7 +146,7 @@ func (Data *Client) Send_Prio_Frames() {
 	})
 }
 
-// Loops over the Config headers and applies them to the Client []string variable. 
+// Loops over the Config headers and applies them to the Client []string variable.
 // Method for example "GET".
 func (Data *Client) GetHeaders(method string) *Client {
 	for _, name := range Data.Config.HeaderOrder {
