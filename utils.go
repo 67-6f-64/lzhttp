@@ -16,6 +16,9 @@ import (
 	"golang.org/x/net/http2/hpack"
 )
 
+// Generate conn performs a conn to the url you supply.
+// Makes all the config options and sets JA3 if given a value.
+// TODO: Add proxy support.
 func (Data *Client) GenerateConn(config ReqConfig) error {
 	conn, err := net.Dial("tcp", CheckAddr(Data.Client.url))
 	if err != nil {
@@ -56,6 +59,8 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 	return nil
 }
 
+// gets a selected cookie based on the cookie_name variable
+//			e.g. "__vf_bm" > "__vf_bm=awdawd223reqfqh32rqrf32qr" (example value)
 func (Data *Client) GetCookie(cookie_name, url string) string {
 	for _, val := range Data.Cookies[url] {
 		if strings.Contains(val.Value, cookie_name) {
@@ -70,6 +75,8 @@ func (Data *Client) GetCookie(cookie_name, url string) string {
 	return ""
 }
 
+// This is a helper function that gets all the cookies from a 
+// cached url and returns them in a format that works with the cookie: header.
 func (Data *Client) TransformCookies(url string) string {
 	var cookies []string
 	for _, val := range Data.Cookies[url] {
@@ -88,6 +95,8 @@ func TurnCookieHeader(Cookies []string) string {
 	return strings.Join(Cookies, "; ")
 }
 
+// This function writes the settings, windows update, prio frames
+// gets the headers AND sends them.
 func (Data *Client) SendSettings(method string) {
 	Data.WriteSettings()
 	Data.Windows_Update()
@@ -96,6 +105,7 @@ func (Data *Client) SendSettings(method string) {
 	Data.Client.Headers = []string{}
 }
 
+// Sends data through the framer 
 func (Data *Website) DataSend(body []byte) {
 	Data.Conn.WriteData(1, true, body)
 }
@@ -132,6 +142,8 @@ func (Data *Client) Send_Prio_Frames() {
 	})
 }
 
+// Loops over the Config headers and applies them to the Client []string variable. 
+// Method for example "GET".
 func (Data *Client) GetHeaders(method string) *Client {
 	for _, name := range Data.Config.HeaderOrder {
 		if name == ":authority" {
@@ -156,6 +168,9 @@ func (Data *Client) GetHeaders(method string) *Client {
 	return Data
 }
 
+// Writes the headers to the http2 framer.
+// this function also encodes the headers into a []byte
+// Endstream is also called in this function, only use true values when performing GET requests.
 func (Data *Client) SendHeaders(endStream bool) {
 	Data.Client.Conn.WriteHeaders(
 		http2.HeadersFrameParam{
@@ -167,10 +182,17 @@ func (Data *Client) SendHeaders(endStream bool) {
 	)
 }
 
+// Writes the window update frame to the http2 framer.
+//				e.g. "Data.Client.Conn.WriteWindowUpdate(0, 15663105)"
 func (Data *Client) Windows_Update() {
 	Data.Client.Conn.WriteWindowUpdate(0, 15663105)
 }
 
+// Write settings writes the default chrome settings to the framer
+//				e.g. "ID: http2.SettingHeaderTableSize, Val: 65536"
+//				e.g. "ID: http2.SettingMaxConcurrentStreams, Val: 1000"
+//				e.g. "ID: http2.SettingInitialWindowSize, Val: 6291456"
+//				e.g. "ID: http2.SettingMaxHeaderListSize, Val: 262144,"
 func (Data *Client) WriteSettings() {
 	Data.Client.Conn.WriteSettings(
 		http2.Setting{
@@ -188,6 +210,8 @@ func (Data *Client) WriteSettings() {
 	)
 }
 
+// Find data is called after the requests are performed, it looks the frames
+// of the framer and returns its data, any errors and also headers / status codes.
 func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 	for {
 		f, err := Datas.Client.Conn.ReadFrame()
@@ -228,6 +252,10 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 	}
 }
 
+// Determines if the url is a IP address or not.
+// This also checks if theres a path present, default to "/" if none.
+//				e.g. "Data.Client.url.Host = addr" > 127.0.0.2
+//				e.g. "https://website.com" > "https://website.com/"
 func (Data *Client) GrabUrl(addr, method string) *Client {
 	Data.Client.url, _ = url.Parse(addr)
 	if !strings.Contains(addr, "https") || !strings.Contains(addr, "http") {
@@ -242,6 +270,8 @@ func (Data *Client) GrabUrl(addr, method string) *Client {
 	return Data
 }
 
+// Checks if there are params in your url and adds it to your path.
+//				e.g. "/api/name?code=12343&scope=1234"
 func (Data *Client) CheckQuery() *Client {
 	if Data.Client.url.Query().Encode() != "" {
 		Data.Client.url.Path += "?" + Data.Client.url.Query().Encode()
@@ -250,6 +280,8 @@ func (Data *Client) CheckQuery() *Client {
 	return Data
 }
 
+// Form header bytes takes the []string of headers and turns it into []byte data
+// this is so it can be compatiable for the http2 headers.
 func (Data *Client) FormHeaderBytes(headers []string) []byte {
 	var val []string
 
@@ -282,6 +314,7 @@ func (Data *Client) FormHeaderBytes(headers []string) []byte {
 	return hbuf.Bytes()
 }
 
+// Returns a user agent based on your OS
 func UserAgent() string {
 	if runtime.GOOS == "windows" {
 		return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
@@ -294,6 +327,8 @@ func UserAgent() string {
 	}
 }
 
+// Takes in the url and returns the host + port of the url.
+//				e.g. "www.google.com:443"
 func CheckAddr(url *url.URL) string {
 	if url.Scheme == "" {
 		return url.Host
@@ -306,6 +341,8 @@ func CheckAddr(url *url.URL) string {
 	}
 }
 
+// This returns the default config variables.
+// header order, chrome like headers and protocols.
 func GetDefaultConfig() Config {
 	return Config{
 		HeaderOrder: []string{
@@ -346,6 +383,8 @@ func GetDefaultConfig() Config {
 	}
 }
 
+// Helper function that checks if a Cookie or other form of header is already
+// Applied in your list of headers.
 func Contains(Value []hpack.HeaderField, Data hpack.HeaderField) bool {
 	for _, data := range Value {
 		if data == Data {
