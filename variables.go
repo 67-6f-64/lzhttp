@@ -23,7 +23,6 @@ type Website struct {
 }
 
 type Config struct {
-	SubHeaderOrder    []string
 	HeaderOrder       []string
 	Headers           map[string]string
 	Protocols         []string
