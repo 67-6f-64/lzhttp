@@ -9,57 +9,59 @@ What this cannot do:
 - Execute JS
 - Bypass CFs 5 sec wait page
 
-# Post Request
+# Examples
 ```go
+// Currently proxys do not work, at the same time the other struct entrys for the ReqConfig is experimental, i also am unsure if CONNECT works.
+// If you are confused with the code, or wanna suggest anything MAKE a pull request or post a issue message.
+
 package main
 
 import (
-    "fmt"
-    "http2/lzhttp"
-    "strconv"
+	"fmt"
+
+	"github.com/Liza-Developer/lzhttp"
 )
 
 func main() {
-    Client := lzhttp.Client{
-        Config: lzhttp.GetDefaultConfig(),
-        //Ja3:    `771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-51-57-47-53-10,0-23-65281-10-11-35-16-5-51-43-13-45-28-21,29-23-24-25-256-257,0`,
-    }
+	Client := lzhttp.Client{
+		Config: lzhttp.GetDefaultConfig(),
+	}
 
-    jsonBody := []byte(`{"content":"Hello, this is an http2 client example of webhook sending."}`)
-    Client.Config.Headers[`content-type`] = "application/json"
-    Client.Config.Headers[`content-length`] = strconv.Itoa(len(jsonBody))
+	Client.Config.Headers["x-testheader-id"] = "application123"
+	Client.Config.Headers["authorization"] = "bearer VERYSECRETTOKEN"
+	// Client.Config.Headers["content-type"] = "application/json" | post req etc.
 
-    res, err := Client.DefaultRequest(lzhttp.MethodPost, "https://discord.com/api/webhooks/ID/TOKEN", jsonBody)
+	// Supports multiple methods of requests, the reqs are all handled under one function.
+	res, _ := Client.DefaultRequest(lzhttp.MethodGet, "https://namemc.com/", lzhttp.ReqConfig{ // "GET"
+		/*
+		   Data               []byte
+		   Cookies            string
+		   Ciphersuites       []uint16
+		   Certificates       []tls.Certificate
+		   Renegotiation      tls.RenegotiationSupport
+		   InsecureSkipVerify bool
+		   ClientAuth         tls.ClientAuthType
+		   Proxy              string // https://user:pass@ip:port
+		   SaveCookies        bool
+		*/
+		SaveCookies: true,
+	})
 
-    if err != nil {
-        fmt.Println(err)
-    }
+	// Client.TransformCookies("https://namemc.com/") Gets the cached cookies from the previous request.
+	// Client.GetCookie("__cf_bm", "https://namemc.com/") Singles out a cookie and returns only that value.
 
-    fmt.Println(res.Status)
-}
-```
+	fmt.Println(res.Status, string(res.Data), res.Headers) // res.Data = []byte
 
-# Get Request
-```go
-package main
+	// Multiple reqs can be done with only the one Client variable!
 
-import (
-    "fmt"
-    "http2/lzhttp"
-)
+	res, _ = Client.DefaultRequest(lzhttp.MethodPost, "https://example.post/api/v2/test", lzhttp.ReqConfig{ // "POST"
+		Data:        []byte(`{"hello":"world"}`),
+		Cookies:     Client.TransformCookies("https://namemc.com/"), // Transform cookies gets all the cached cookies in the url and organizes them.
+		SaveCookies: false,
+		// ...
+	})
 
-func main() {
-    Client := lzhttp.Client{
-        Config: lzhttp.GetDefaultConfig(),
-    }
-
-    res, err := Client.DefaultRequest(lzhttp.MethodGet, "https://namemc.com/", nil)
-
-    if err != nil {
-        fmt.Println(err)
-    }
-
-    fmt.Println(Client.Client.Headers, res.Status)
+	fmt.Println(res.Status, string(res.Data), res.Headers)
 }
 ```
 
