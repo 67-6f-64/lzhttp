@@ -28,6 +28,7 @@ type Config struct {
 	Headers           map[string]string
 	Protocols         []string
 	CapitalizeHeaders bool
+	Debug             bool
 }
 
 type Response struct {

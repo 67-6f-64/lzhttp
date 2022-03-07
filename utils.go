@@ -189,6 +189,13 @@ func (Data *Client) SendHeaders(endStream bool) {
 // Writes the window update frame to the http2 framer.
 //				e.g. "Data.Client.Conn.WriteWindowUpdate(0, 15663105)"
 func (Data *Client) Windows_Update() {
+	if Data.Config.Debug {
+		fmt.Print(`
+send WINDOW_UPDATE frame
+	Window_Size_Increment: 15663105
+	
+`)
+	}
 	Data.Client.Conn.WriteWindowUpdate(0, 15663105)
 }
 
@@ -198,6 +205,15 @@ func (Data *Client) Windows_Update() {
 //				e.g. "ID: http2.SettingInitialWindowSize, Val: 6291456"
 //				e.g. "ID: http2.SettingMaxHeaderListSize, Val: 262144,"
 func (Data *Client) WriteSettings() {
+	if Data.Config.Debug {
+		fmt.Print(`send SETTINGS frame
+	HEADER_TABLE_SIZE:      65536
+	MAX_CONCURRENT_STREAMS: 1000
+	INITIAL_WINDOW_SIZE:    6291456
+	MAX_HEADER_LIST_SIZE:   262144
+
+`)
+	}
 	Data.Client.Conn.WriteSettings(
 		http2.Setting{
 			ID: http2.SettingHeaderTableSize, Val: 65536,
@@ -225,6 +241,10 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 
 		switch f := f.(type) {
 		case *http2.DataFrame:
+			if Datas.Config.Debug {
+				fmt.Printf("Received: %v\n", f)
+			}
+
 			Config.Data = append(Config.Data, f.Data()...)
 			if f.FrameHeader.Flags.Has(http2.FlagDataEndStream) {
 				return Config, nil
@@ -234,6 +254,7 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 			if err != nil {
 				return Config, err
 			}
+
 			for _, Data := range Config.Headers {
 				if Data.Name == ":status" {
 					Config.Status = Data.Value
@@ -245,6 +266,14 @@ func (Datas *Client) FindData(req ReqConfig) (Config Response, err error) {
 					}
 				}
 			}
+
+			if Datas.Config.Debug {
+				fmt.Printf("Received: %v\n", f)
+				for _, Data := range Config.Headers {
+					fmt.Printf("	%v: %v", Data.Name, Data.Value)
+				}
+			}
+
 			if f.FrameHeader.Flags.Has(http2.FlagDataEndStream) && f.FrameHeader.Flags.Has(http2.FlagHeadersEndStream) {
 				return Config, nil
 			}
@@ -287,6 +316,7 @@ func (Data *Client) CheckQuery() *Client {
 // Form header bytes takes the []string of headers and turns it into []byte data
 // this is so it can be compatiable for the http2 headers.
 func (Data *Client) FormHeaderBytes(headers []string) []byte {
+
 	var val []string
 
 	hbuf := bytes.NewBuffer([]byte{})
@@ -313,6 +343,13 @@ func (Data *Client) FormHeaderBytes(headers []string) []byte {
 			val = data[0:]
 		}
 		encoder.WriteField(hpack.HeaderField{Name: strings.TrimSpace(val[0]), Value: strings.TrimSpace(val[1])})
+	}
+
+	if Data.Config.Debug {
+		fmt.Println("send HEADERS frame <flags=End_Headers End_Stream>")
+		for _, header := range headers {
+			fmt.Printf("Header - %v\n", header)
+		}
 	}
 
 	return hbuf.Bytes()
