@@ -22,6 +22,27 @@ import (
 	"github.com/Liza-Developer/lzhttp"
 )
 
+/*
+
+Example of the http req config, yes proxys do function now!
+
+type ReqConfig struct {
+    Data                     []byte
+    Cookies                  string
+    Ciphersuites             []uint16
+    Certificates             []tls.Certificate
+    CurvePreferences         []tls.CurveID
+    Renegotiation            tls.RenegotiationSupport
+    ClientAuth               tls.ClientAuthType
+    InsecureSkipVerify       bool
+    Proxy                    *ProxyAuth
+    SaveCookies              bool
+    PreferServerCipherSuites bool
+    RootCAs                  *x509.CertPool
+    ClientCAs                *x509.CertPool
+}
+*/
+
 func main() {
 	Client := lzhttp.Client{
 		Config: lzhttp.GetDefaultConfig(),
@@ -33,22 +54,6 @@ func main() {
 
 	// Supports multiple methods of requests, the reqs are all handled under one function.
 	res, _ := Client.DefaultRequest(lzhttp.MethodGet, "https://namemc.com/", lzhttp.ReqConfig{ // "GET"
-		/*
-		   Data               []byte
-		   Cookies            string
-		   Ciphersuites       []uint16
-		   Certificates       []tls.Certificate
-		   Renegotiation      tls.RenegotiationSupport
-		   InsecureSkipVerify bool
-		   ClientAuth         tls.ClientAuthType
-		   Proxy: &lzhttp.ProxyAuth{
-			IP:       "IP",
-			Port:     "PORT",
-			User:     "username",
-			Password: "secretpassword",
-		   },
-		   SaveCookies        bool
-		*/
 		SaveCookies: true,
 	})
 
