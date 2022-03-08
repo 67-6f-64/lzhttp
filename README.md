@@ -41,7 +41,12 @@ func main() {
 		   Renegotiation      tls.RenegotiationSupport
 		   InsecureSkipVerify bool
 		   ClientAuth         tls.ClientAuthType
-		   Proxy              string // https://user:pass@ip:port
+		   Proxy: &lzhttp.ProxyAuth{
+			IP:       "IP",
+			Port:     "PORT",
+			User:     "username",
+			Password: "secretpassword",
+		   },
 		   SaveCookies        bool
 		*/
 		SaveCookies: true,
