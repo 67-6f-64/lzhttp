@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Danny-Dasilva/CycleTLS/cycletls"
 	tls "gitlab.com/yawning/utls.git"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/hpack"
@@ -71,7 +70,7 @@ func (Data *Client) GenerateSpec(config ReqConfig) *tls.ClientHelloSpec {
 		check[val] = 1
 	}
 
-	for letter, _ := range check {
+	for letter := range check {
 		spec.CipherSuites = append(spec.CipherSuites, letter)
 	}
 
@@ -113,38 +112,28 @@ func (Data *Client) ConnectProxy(config ReqConfig) error {
 	}, proxy.Direct)
 	if err != nil {
 		return err
+	}
+
+	conn, err := req.Dial("tcp", CheckAddr(Data.Client.url))
+	if err != nil {
+		return err
+	}
+
+	if tlsConn := tls.UClient(conn, &tls.Config{
+		ServerName:               Data.Client.url.Host,
+		NextProtos:               Data.Config.Protocols,
+		InsecureSkipVerify:       config.InsecureSkipVerify,
+		Renegotiation:            config.Renegotiation,
+		CipherSuites:             config.Ciphersuites,
+		Certificates:             config.Certificates,
+		ClientAuth:               config.ClientAuth,
+		PreferServerCipherSuites: config.PreferServerCipherSuites,
+		CurvePreferences:         config.CurvePreferences,
+		RootCAs:                  config.RootCAs,
+		ClientCAs:                config.ClientCAs,
+	}, tls.HelloChrome_Auto); tlsConn.ApplyPreset(Data.GenerateSpec(config)) != nil {
+		return err
 	} else {
-		conn, err := req.Dial("tcp", CheckAddr(Data.Client.url))
-		if err != nil {
-			return err
-		}
-
-		tlsConn := tls.UClient(conn, &tls.Config{
-			ServerName:               Data.Client.url.Host,
-			NextProtos:               Data.Config.Protocols,
-			InsecureSkipVerify:       config.InsecureSkipVerify,
-			Renegotiation:            config.Renegotiation,
-			CipherSuites:             config.Ciphersuites,
-			Certificates:             config.Certificates,
-			ClientAuth:               config.ClientAuth,
-			PreferServerCipherSuites: config.PreferServerCipherSuites,
-			CurvePreferences:         config.CurvePreferences,
-			RootCAs:                  config.RootCAs,
-			ClientCAs:                config.ClientCAs,
-		}, tls.HelloChrome_Auto)
-
-		if Data.Ja3 != "" {
-			spec, err := cycletls.StringToSpec(Data.Ja3, Data.Config.Headers["user-agent"])
-			if err != nil {
-				return err
-			}
-
-			err = tlsConn.ApplyPreset(spec)
-			if err != nil {
-				return err
-			}
-		}
-
 		if config.SaveCookies {
 			if Data.Cookies == nil || len(Data.Cookies) == 0 {
 				Data.Cookies = make(map[string][]hpack.HeaderField)
@@ -152,10 +141,7 @@ func (Data *Client) ConnectProxy(config ReqConfig) error {
 		}
 
 		fmt.Fprintf(tlsConn, http2.ClientPreface)
-		err = tlsConn.Handshake()
-		if err != nil {
-			return err
-		}
+		tlsConn.Handshake()
 
 		Data.Client.Conn = http2.NewFramer(tlsConn, tlsConn)
 		Data.Client.Conn.SetReuseFrames()
@@ -173,7 +159,7 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 		return err
 	}
 
-	tlsConn := tls.UClient(conn, &tls.Config{
+	if tlsConn := tls.UClient(conn, &tls.Config{
 		ServerName:               Data.Client.url.Host,
 		NextProtos:               Data.Config.Protocols,
 		InsecureSkipVerify:       config.InsecureSkipVerify,
@@ -185,23 +171,21 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 		CurvePreferences:         config.CurvePreferences,
 		RootCAs:                  config.RootCAs,
 		ClientCAs:                config.ClientCAs,
-	}, tls.HelloChrome_Auto)
-
-	if err := tlsConn.ApplyPreset(Data.GenerateSpec(config)); err != nil {
+	}, tls.HelloChrome_Auto); tlsConn.ApplyPreset(Data.GenerateSpec(config)) != nil {
 		return err
-	}
-
-	if config.SaveCookies {
-		if Data.Cookies == nil || len(Data.Cookies) == 0 {
-			Data.Cookies = make(map[string][]hpack.HeaderField)
+	} else {
+		if config.SaveCookies {
+			if Data.Cookies == nil || len(Data.Cookies) == 0 {
+				Data.Cookies = make(map[string][]hpack.HeaderField)
+			}
 		}
+
+		fmt.Fprintf(tlsConn, http2.ClientPreface)
+		tlsConn.Handshake()
+
+		Data.Client.Conn = http2.NewFramer(tlsConn, tlsConn)
+		Data.Client.Conn.SetReuseFrames()
 	}
-
-	fmt.Fprintf(tlsConn, http2.ClientPreface)
-	tlsConn.Handshake()
-
-	Data.Client.Conn = http2.NewFramer(tlsConn, tlsConn)
-	Data.Client.Conn.SetReuseFrames()
 
 	return nil
 }
