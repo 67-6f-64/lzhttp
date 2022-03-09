@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/Danny-Dasilva/CycleTLS/cycletls"
@@ -16,6 +17,94 @@ import (
 	"golang.org/x/net/http2/hpack"
 	"golang.org/x/net/proxy"
 )
+
+func (Data *Client) JA3() (targetPointFormats []byte, suites []uint16, targetCurves []tls.CurveID) {
+	if Data.Ja3 != "" {
+		tokens := strings.Split(Data.Ja3, ",")
+		ciphers := strings.Split(tokens[1], "-")
+		curves := strings.Split(tokens[3], "-")
+		pointFormats := strings.Split(tokens[4], "-")
+
+		if len(curves) == 1 && curves[0] == "" {
+			curves = []string{}
+		}
+
+		if len(pointFormats) == 1 && pointFormats[0] == "" {
+			pointFormats = []string{}
+		}
+
+		// parse curves
+		targetCurves = append(targetCurves, tls.CurveID(tls.GREASE_PLACEHOLDER)) //append grease for Chrome browsers
+		for _, c := range curves {
+			cid, _ := strconv.ParseUint(c, 10, 16)
+			targetCurves = append(targetCurves, tls.CurveID(cid))
+		}
+
+		for _, p := range pointFormats {
+			pid, _ := strconv.ParseUint(p, 10, 8)
+			targetPointFormats = append(targetPointFormats, byte(pid))
+		}
+
+		for _, c := range ciphers {
+			cid, _ := strconv.ParseUint(c, 10, 16)
+			suites = append(suites, uint16(cid))
+		}
+	}
+
+	return
+}
+
+func (Data *Client) DefaultSpec() *tls.ClientHelloSpec {
+	return &tls.ClientHelloSpec{
+		CipherSuites: []uint16{
+			tls.GREASE_PLACEHOLDER,
+		},
+	}
+}
+
+func (Data *Client) GenerateSpec(config ReqConfig) *tls.ClientHelloSpec {
+	targetPointFormats, suites, targetCurves := Data.JA3()
+	spec := Data.DefaultSpec()
+
+	check := make(map[uint16]int)
+	for _, val := range append(config.Ciphersuites, suites...) {
+		check[val] = 1
+	}
+
+	for letter, _ := range check {
+		spec.CipherSuites = append(spec.CipherSuites, letter)
+	}
+
+	spec.Extensions = []tls.TLSExtension{
+		&tls.SNIExtension{ServerName: Data.Client.url.Host},
+		&tls.SupportedCurvesExtension{Curves: targetCurves},
+		&tls.SupportedPointsExtension{SupportedPoints: targetPointFormats}, // uncompressed
+		&tls.SessionTicketExtension{},
+		&tls.ALPNExtension{AlpnProtocols: Data.Config.Protocols},
+		&tls.SignatureAlgorithmsExtension{SupportedSignatureAlgorithms: []tls.SignatureScheme{
+			tls.ECDSAWithP256AndSHA256,
+			tls.ECDSAWithP384AndSHA384,
+			tls.ECDSAWithP521AndSHA512,
+			tls.PSSWithSHA256,
+			tls.PSSWithSHA384,
+			tls.PSSWithSHA512,
+			tls.PKCS1WithSHA256,
+			tls.PKCS1WithSHA384,
+			tls.PKCS1WithSHA512,
+			tls.ECDSAWithSHA1,
+			tls.PKCS1WithSHA1}},
+		&tls.KeyShareExtension{KeyShares: []tls.KeyShare{}},
+		&tls.PSKKeyExchangeModesExtension{
+			Modes: []uint8{0}}, // pskModeDHE
+		&tls.SupportedVersionsExtension{
+			Versions: []uint16{
+				tls.VersionTLS13,
+				tls.VersionTLS12,
+				tls.VersionTLS11,
+				tls.VersionTLS10}}}
+
+	return spec
+}
 
 func (Data *Client) ConnectProxy(config ReqConfig) error {
 	req, err := proxy.SOCKS5("tcp", fmt.Sprintf("%v:%v", config.Proxy.IP, config.Proxy.Port), &proxy.Auth{
@@ -98,13 +187,8 @@ func (Data *Client) GenerateConn(config ReqConfig) error {
 		ClientCAs:                config.ClientCAs,
 	}, tls.HelloChrome_Auto)
 
-	if Data.Ja3 != "" {
-		spec, err := cycletls.StringToSpec(Data.Ja3, Data.Config.Headers["user-agent"])
-		if err != nil {
-			return err
-		}
-
-		tlsConn.ApplyPreset(spec)
+	if err := tlsConn.ApplyPreset(Data.GenerateSpec(config)); err != nil {
+		return err
 	}
 
 	if config.SaveCookies {
