@@ -4,7 +4,7 @@ I originally was not going to release this src, but seeing as i have no reason t
 What this cannot do:
 - Execute JS
 
-# Examples
+# Example:
 ```go
 // Currently proxys do not work, at the same time the other struct entrys for the ReqConfig is experimental, i also am unsure if CONNECT works.
 // If you are confused with the code, or wanna suggest anything MAKE a pull request or post a issue message.
