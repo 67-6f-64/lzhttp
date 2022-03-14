@@ -1,4 +1,4 @@
-module github.com/Liza-Developer/lzhttp
+module github.com/6uf/lzhttp
 
 go 1.17
 
