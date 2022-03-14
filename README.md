@@ -17,28 +17,6 @@ import (
 	"github.com/6uf/lzhttp"
 )
 
-/*
-
-Example of the http req config, yes proxys do function now!
-
-type ReqConfig struct {
-    Data                     []byte
-    Cookies                  string
-    Ciphersuites             []uint16
-    Certificates             []tls.Certificate
-    CurvePreferences         []tls.CurveID
-    Renegotiation            tls.RenegotiationSupport
-    ClientAuth               tls.ClientAuthType
-    InsecureSkipVerify       bool
-    Proxy                    *ProxyAuth
-    SaveCookies              bool
-    PreferServerCipherSuites bool
-    RootCAs                  *x509.CertPool
-    ClientCAs                *x509.CertPool
-}
-
-*/
-
 func main() {
 	Client := lzhttp.Client{
 		Config: lzhttp.GetDefaultConfig(),
@@ -53,16 +31,13 @@ func main() {
 		SaveCookies: true,
 	})
 
-	// Client.TransformCookies("https://namemc.com/") Gets the cached cookies from the previous request.
-	// Client.GetCookie("__cf_bm", "https://namemc.com/") Singles out a cookie and returns only that value.
+	// Client.TransformCookies("https://example.com/") Gets the cached cookies from the previous request.
+	// Client.GetCookie("__cf_bm", "https://example.com/") Singles out a cookie and returns only that value.
 
 	fmt.Println(res.Status, string(res.Data), res.Headers) // res.Data = []byte
-
-	// Multiple reqs can be done with only the one Client variable!
-
 	res, _ = Client.DefaultRequest(lzhttp.MethodPost, "https://example.post/api/v2/test", lzhttp.ReqConfig{ // "POST"
 		Data:        []byte(`{"hello":"world"}`),
-		Cookies:     Client.TransformCookies("https://namemc.com/"), // Transform cookies gets all the cached cookies in the url and organizes them.
+		Cookies:     Client.TransformCookies("https://example.com/"),
 		SaveCookies: false,
 		// ...
 	})
