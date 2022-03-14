@@ -26,9 +26,9 @@ func (Data *Client) MakeConn(method, addr string, config ReqConfig) (err error) 
 
 // This is a temp build for tests.
 func (Data *Client) Do() (Res Response, err error) {
-	Data.SendSettings(Data.Config.Headers[":scheme"])
+	Data.SendSettings(Data.Config.Headers[":method"])
 
-	if Data.Config.Headers[":scheme"] != "GET" {
+	if Data.Config.Headers[":method"] != "GET" {
 		Data.Client.DataSend(Data.reqclient.Data)
 	}
 
