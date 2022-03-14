@@ -14,7 +14,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Liza-Developer/lzhttp"
+	"github.com/6uf/lzhttp"
 )
 
 /*
@@ -49,7 +49,7 @@ func main() {
 	// Client.Config.Headers["content-type"] = "application/json" | post req etc.
 
 	// Supports multiple methods of requests, the reqs are all handled under one function.
-	res, _ := Client.DefaultRequest(lzhttp.MethodGet, "https://namemc.com/", lzhttp.ReqConfig{ // "GET"
+	res, _ := Client.DefaultRequest(lzhttp.MethodGet, "https://example.com/", lzhttp.ReqConfig{ // "GET"
 		SaveCookies: true,
 	})
 
