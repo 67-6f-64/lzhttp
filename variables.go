@@ -11,16 +11,16 @@ import (
 )
 
 type Client struct {
-	Config  Config
-	Ja3     string
-	Cookies map[string][]hpack.HeaderField // Used to store the data of websites cookies
-	Client  Website
+	Config    Config
+	Ja3       string
+	Cookies   map[string][]hpack.HeaderField // Used to store the data of websites cookies
+	Client    Website
+	reqclient ReqConfig
 }
 
 type Website struct {
-	url     *url.URL
-	Headers []string
-	Conn    *http2.Framer
+	url  *url.URL
+	Conn *http2.Framer
 }
 
 type Config struct {

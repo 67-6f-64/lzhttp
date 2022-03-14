@@ -232,8 +232,7 @@ func (Data *Client) SendSettings(method string) {
 	Data.WriteSettings()
 	Data.Windows_Update()
 	Data.Send_Prio_Frames()
-	Data.GetHeaders(method).SendHeaders(method == "GET")
-	Data.Client.Headers = []string{}
+	Data.SendHeaders(Data.GetHeaders(method), method == "GET")
 }
 
 // Sends data through the framer
@@ -275,38 +274,38 @@ func (Data *Client) Send_Prio_Frames() {
 
 // Loops over the Config headers and applies them to the Client []string variable.
 // Method for example "GET".
-func (Data *Client) GetHeaders(method string) *Client {
+func (Data *Client) GetHeaders(method string) (headers []string) {
 	for _, name := range Data.Config.HeaderOrder {
 		if name == ":authority" {
-			Data.Client.Headers = append(Data.Client.Headers, name+": "+Data.Client.url.Host)
+			headers = append(headers, name+": "+Data.Client.url.Host)
 		} else if name == ":method" {
-			Data.Client.Headers = append(Data.Client.Headers, name+": "+method)
+			headers = append(headers, name+": "+method)
 		} else if name == ":path" {
-			Data.Client.Headers = append(Data.Client.Headers, name+": "+Data.CheckQuery().Client.url.Path)
+			headers = append(headers, name+": "+Data.CheckQuery().Client.url.Path)
 		} else if name == ":scheme" {
-			Data.Client.Headers = append(Data.Client.Headers, name+": "+Data.Client.url.Scheme)
+			headers = append(headers, name+": "+Data.Client.url.Scheme)
 		} else if val, exists := Data.Config.Headers[name]; exists {
-			Data.Client.Headers = append(Data.Client.Headers, name+": "+val)
+			headers = append(headers, name+": "+val)
 		}
 	}
 
 	for name, val := range Data.Config.Headers {
 		if !strings.Contains(strings.Join(Data.Config.HeaderOrder, ","), name) {
-			Data.Client.Headers = append(Data.Client.Headers, name+": "+val)
+			headers = append(headers, name+": "+val)
 		}
 	}
 
-	return Data
+	return
 }
 
 // Writes the headers to the http2 framer.
 // this function also encodes the headers into a []byte
 // Endstream is also called in this function, only use true values when performing GET requests.
-func (Data *Client) SendHeaders(endStream bool) {
+func (Data *Client) SendHeaders(headers []string, endStream bool) {
 	Data.Client.Conn.WriteHeaders(
 		http2.HeadersFrameParam{
 			StreamID:      1,
-			BlockFragment: Data.FormHeaderBytes(Data.Client.Headers),
+			BlockFragment: Data.FormHeaderBytes(headers),
 			EndHeaders:    true,
 			EndStream:     endStream,
 		},
@@ -497,13 +496,13 @@ func UserAgent() string {
 func CheckAddr(url *url.URL) string {
 	if url.Scheme == "" {
 		return url.Host
-	} else {
-		if url.Scheme == "https" {
-			return url.Host + ":443"
-		} else {
-			return url.Host + ":80"
-		}
 	}
+
+	if url.Scheme == "https" {
+		return url.Host + ":443"
+	}
+
+	return url.Host + ":80"
 }
 
 // This returns the default config variables.
