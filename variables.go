@@ -11,11 +11,10 @@ import (
 )
 
 type Client struct {
-	Config    Config
-	Ja3       string
-	Cookies   map[string][]hpack.HeaderField // Used to store the data of websites cookies
-	Client    Website
-	reqclient ReqConfig
+	Config  Config
+	Ja3     string
+	Cookies map[string][]hpack.HeaderField // Used to store the data of websites cookies
+	Client  Website
 }
 
 type Website struct {
